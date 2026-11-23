@@ -1,0 +1,20 @@
+# Секреты и сессии Telegram (защита аккаунта)
+.env
+*.session
+*.session-journal
+
+# Локальные базы данных
+*.db
+*.db-wal
+*.db-shm
+validate_scores_results.csv
+
+# Обученные веса модели
+models_cache/*
+
+# Системные папки Python и PyCharm
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/

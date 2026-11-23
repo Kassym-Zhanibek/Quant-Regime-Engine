@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Категория — Quant Regime</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { darkbg: '#0B0E14', cardbg: '#141A23', cardborder: '#212B38' } } }
+        }
+    </script>
+    <style>
+        body { background-color: #0B0E14; color: #E2E8F0; font-family: system-ui, -apple-system, sans-serif; }
+        .glass-card { background: #141A23; border: 1px solid #212B38; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!--NAV-->
+
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto mb-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+            <a id="back-link" href="/" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white mb-2 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> <span id="back-text">На дашборд</span>
+            </a>
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-2xl font-bold tracking-wide text-white" id="cat-title">…</h1>
+                <span id="cat-sub" class="px-2.5 py-0.5 text-xs font-semibold rounded border bg-gray-500/10 text-gray-400 border-gray-500/20"></span>
+                <span id="cat-badge" class="px-2.5 py-0.5 text-xs font-bold rounded border hidden"></span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1" id="cat-hint">Общий конвейер: Telegram + RSS → фильтр Qwen → FinBERT + Qwen → скор</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span id="bg-status" class="px-2.5 py-1 text-[11px] font-semibold rounded border bg-gray-500/10 text-gray-400 border-gray-500/20">Загрузка…</span>
+            <div id="bg-hl-switch" class="flex rounded-lg overflow-hidden border border-cardborder text-xs"></div>
+            <button onclick="refreshPipeline()" id="bg-refresh-btn" class="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+                <i data-lucide="download-cloud" class="w-4 h-4"></i> Докачать посты
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-6">
+        <div class="glass-card rounded-xl p-6 border-l-4 border-gray-500" id="cat-section">
+
+            <div id="bg-warning" class="hidden text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-4"></div>
+
+            <!-- Tiles: котировки + скоры + посты -->
+            <div id="tiles" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6"></div>
+
+            <!-- Chart + half-life table -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div>
+                    <h3 id="chart-title" class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Динамика итогового скора · 72 ч</h3>
+                    <div class="h-64 relative w-full"><canvas id="bgChart"></canvas></div>
+                </div>
+                <div>
+                    <h3 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Скоры по полупериодам затухания</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-gray-400 border-b border-cardborder uppercase font-medium">
+                                <tr>
+                                    <th class="pb-2 px-2">Полупер.</th>
+                                    <th class="pb-2 px-2 text-white">Итог</th>
+                                    <th class="pb-2 px-2 text-amber-400">FB shrunk</th>
+                                    <th class="pb-2 px-2">z</th>
+                                    <th class="pb-2 px-2 text-blue-400">Qwen shrunk</th>
+                                    <th class="pb-2 px-2">z</th>
+                                    <th class="pb-2 px-2 text-right">W</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bg-table-body" class="divide-y divide-cardborder/50 text-gray-300 font-mono">
+                                <tr><td colspan="7" class="py-6 text-center text-gray-500 font-sans">Загрузка…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-3 leading-relaxed">
+                        <b>Итог</b> = <span id="w-note">0.3·FinBERT + 0.7·Qwen</span> (оба — shrunk).
+                        <b>shrunk</b> — Σ w·s / (W + k): при малом числе свежих новостей стремится к 0.
+                        <b>z</b> — импульс в σ. <b>W</b> — «свежая масса» новостей (вес поста = 0.5<sup>возраст/полупериод</sup>).
+                        <span id="bg-norm-note"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Posts + sources -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+                <div class="xl:col-span-2">
+                    <h3 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Последние новости с оценками</h3>
+                    <div id="bg-posts" class="space-y-2 max-h-[34rem] overflow-y-auto pr-1">
+                        <div class="text-center text-gray-500 text-xs py-6">Загрузка…</div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Источники категории</h3>
+                    <div id="sources" class="space-y-2 max-h-[34rem] overflow-y-auto pr-1"></div>
+                    <p class="text-[10px] text-gray-500 mt-2 leading-relaxed">
+                        <span class="text-cyan-400">по словам</span> — из источника берутся только посты с ключевыми словами категории.
+                        Список источников меняется в <code>app/sources.py</code>.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const CAT_KEY = decodeURIComponent(location.pathname.replace(/\/+$/, '').split('/').pop());
+        const ACCENT = {   // литеральные классы, чтобы Tailwind CDN их не потерял
+            amber:   {border: 'border-amber-500',   text: 'text-amber-400',   chip: 'bg-amber-500/10 text-amber-400 border-amber-500/20'},
+            orange:  {border: 'border-orange-500',  text: 'text-orange-400',  chip: 'bg-orange-500/10 text-orange-400 border-orange-500/20'},
+            purple:  {border: 'border-purple-500',  text: 'text-purple-400',  chip: 'bg-purple-500/10 text-purple-400 border-purple-500/20'},
+            emerald: {border: 'border-emerald-500', text: 'text-emerald-400', chip: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'},
+            sky:     {border: 'border-sky-500',     text: 'text-sky-400',     chip: 'bg-sky-500/10 text-sky-400 border-sky-500/20'},
+            slate:   {border: 'border-slate-400',   text: 'text-slate-300',   chip: 'bg-slate-500/10 text-slate-300 border-slate-500/20'},
+            rose:    {border: 'border-rose-500',    text: 'text-rose-400',    chip: 'bg-rose-500/10 text-rose-400 border-rose-500/20'},
+            indigo:  {border: 'border-indigo-500',  text: 'text-indigo-400',  chip: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'},
+            teal:    {border: 'border-teal-500',    text: 'text-teal-400',    chip: 'bg-teal-500/10 text-teal-400 border-teal-500/20'},
+            cyan:    {border: 'border-cyan-500',    text: 'text-cyan-400',    chip: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'},
+        };
+        const IS_STOCK = location.pathname.startsWith('/stock/');      // страница тикера: свинг -> окно графика 10 суток
+        const SERIES_HOURS = IS_STOCK ? 240 : 72;
+        let chartInstance = null, snapshot = null, series = null, selectedHL = null, pollTimer = null;
+
+        // ---------- утилиты ----------
+        function escapeHtml(v) {
+            return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+        function safeUrl(u) { return /^https?:\/\//i.test(u || '') ? u : null; }
+        function parseUtc(s) { return new Date(String(s).replace(' ', 'T') + 'Z'); }
+        function fmtSigned(x, nd = 3) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : '') + x.toFixed(nd); }
+        function scoreColor(x) {
+            if (x === null || x === undefined) return 'text-gray-500';
+            if (x >= 0.05) return 'text-emerald-400';
+            if (x <= -0.05) return 'text-rose-400';
+            return 'text-gray-300';
+        }
+        function barClass(v) { return 'absolute top-0 bottom-0 transition-all duration-500 ' + (v >= 0.05 ? 'bg-emerald-500' : v <= -0.05 ? 'bg-rose-500' : 'bg-gray-500'); }
+        function centeredBar(v) {
+            const val = Math.max(-1, Math.min(1, v || 0)), w = Math.abs(val) * 50;
+            return `<div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden relative mt-3">
+                        <div class="absolute top-0 bottom-0 left-1/2 w-px bg-gray-600"></div>
+                        <div class="${barClass(val)}" style="left:${val >= 0 ? 50 : 50 - w}%;width:${w}%"></div></div>`;
+        }
+        function agoText(ts) {
+            if (!ts) return '—';
+            const m = Math.max(0, Math.round((Date.now() - parseUtc(ts).getTime()) / 60000));
+            return m < 90 ? m + ' мин назад' : m < 60 * 36 ? (m / 60).toFixed(1) + ' ч назад' : Math.round(m / 1440) + ' дн назад';
+        }
+
+        // ---------- статус конвейера ----------
+        function renderStatus(p) {
+            const el = document.getElementById('bg-status');
+            const map = {
+                ok:               ['Telegram подключён', 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'],
+                needs_login:      ['Нужен вход: python scripts/tg_login.py', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                no_credentials:   ['Не заданы TG_API_ID / TG_API_HASH', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                telethon_missing: ['Не установлен telethon', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                disabled:         ['Telegram выключен (TG_ENABLED=0)', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+                error:            ['Ошибка Telegram', 'bg-rose-500/10 text-rose-400 border-rose-500/20'],
+                idle:             ['Ожидание первого цикла…', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+            };
+            const [t0, cls] = map[p.telegram] || map.idle;
+            let text = t0;
+            if (p.running) text = '⏳ Цикл: ' + p.stage + ' · ' + t0;
+            else if (p.last_cycle_at) text += ' · цикл ' + new Date(p.last_cycle_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) +
+                (p.last_cycle_seconds != null ? ' (' + p.last_cycle_seconds + ' с)' : '');
+            el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border ' + cls;
+            el.textContent = text;
+            el.title = (p.errors && p.errors.length) ? p.errors.join('\n') : '';
+        }
+
+        function renderHlSwitch(halfLives) {
+            document.getElementById('bg-hl-switch').innerHTML = halfLives.map(hl =>
+                `<button onclick="selectHL(${hl})" class="px-3 py-1.5 transition-colors ${hl === selectedHL ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 hover:bg-gray-800'}">${hl} ч</button>`).join('');
+        }
+        function selectHL(hl) { selectedHL = hl; if (snapshot) renderSnapshot(snapshot); if (series) renderChart(series); }
+
+        // ---------- плитки ----------
+        function marketTile(m) {
+            const ch = m.change_bps !== null && m.change_bps !== undefined
+                ? `<span class="${m.change_bps >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${m.change_bps >= 0 ? '▲' : '▼'} ${Math.abs(m.change_bps).toFixed(1)} bps</span>`
+                : (m.change_pct !== null && m.change_pct !== undefined
+                    ? `<span class="${m.change_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${m.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(m.change_pct).toFixed(2)}%</span>` : '<span class="text-gray-500">—</span>');
+            const price = m.price === null || m.price === undefined ? '—' : (m.kind === 'yield' ? m.price.toFixed(2) + '%' : m.price.toFixed(2));
+            return `<div class="rounded-xl p-4 bg-black/30 border border-cardborder">
+                <div class="flex justify-between items-center mb-2"><span class="text-xs font-medium text-gray-400 uppercase tracking-wider">${escapeHtml(m.name)}</span>
+                <span class="text-[10px] text-gray-500">к пред. закрытию</span></div>
+                <div class="text-3xl font-extrabold text-white">${price}</div>
+                <div class="text-xs mt-2">${ch}</div></div>`;
+        }
+        function stockTile(s) {
+            if (!s) return '';
+            const days = s.days_to_earnings, warn = days !== null && days !== undefined && days <= 7;
+            const c5 = s.change_5d_pct;
+            const c5Html = c5 === null || c5 === undefined ? '<span class="text-gray-500">—</span>'
+                : `<span class="${c5 >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${c5 >= 0 ? '▲' : '▼'} ${Math.abs(c5).toFixed(2)}%</span>`;
+            const earn = s.next_earnings ? `${escapeHtml(s.next_earnings)} (${days} дн.)` : 'нет данных';
+            return `<div class="rounded-xl p-4 bg-black/30 border ${warn ? 'border-amber-500/40' : 'border-cardborder'}">
+                <div class="flex justify-between items-center mb-2"><span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Свинг-контекст</span>
+                <i data-lucide="calendar-clock" class="w-4 h-4 ${warn ? 'text-amber-400' : 'text-gray-500'}"></i></div>
+                <div class="text-sm space-y-1.5 font-mono">
+                    <div class="flex justify-between"><span class="text-gray-500 font-sans">За 5 сессий</span>${c5Html}</div>
+                    <div class="flex justify-between"><span class="text-gray-500 font-sans">Отчётность</span><span class="${warn ? 'text-amber-400 font-bold' : 'text-gray-200'}">${earn}</span></div>
+                </div>
+                ${warn ? '<div class="text-[11px] text-amber-400 mt-2 font-sans">Отчёт в ближайшие 7 дней: риск гэпа, сентимент до отчёта — слабый сигнал.</div>' : ''}</div>`;
+        }
+        function scoreTile(title, hlText, value, extra, accentCls, big) {
+            return `<div class="rounded-xl p-4 bg-black/30 border border-cardborder">
+                <div class="flex justify-between items-center mb-2"><span class="text-xs font-medium text-gray-400 uppercase tracking-wider">${title}</span>
+                <span class="text-[10px] ${accentCls} font-mono">${hlText}</span></div>
+                <div class="text-3xl font-extrabold ${value === null ? 'text-white' : scoreColor(value).replace('text-gray-300', 'text-white')}">${fmtSigned(value, 3)}</div>
+                ${centeredBar(value)}
+                <div class="text-[11px] text-gray-500 mt-3 font-mono">${extra}</div></div>`;
+        }
+
+        function setTilesGrid() {
+            const box = document.getElementById('tiles');
+            const n = box.children.length;
+            const xl = n >= 6 ? 'xl:grid-cols-3' : n === 5 ? 'xl:grid-cols-5' : 'xl:grid-cols-4';
+            box.className = 'grid grid-cols-1 md:grid-cols-2 ' + xl + ' gap-4 mb-6';
+        }
+
+        function renderSnapshot(d) {
+            const cat = d.category, acc = ACCENT[cat.accent] || ACCENT.amber;
+            document.title = cat.label + ' — Quant Regime';
+            const stockPage = cat.group === 'stocks';
+            document.getElementById('back-link').href = stockPage ? '/stocks' : '/';
+            document.getElementById('back-text').textContent = stockPage ? 'К акциям' : 'На дашборд';
+            document.getElementById('chart-title').textContent = `Динамика итогового скора · ${SERIES_HOURS} ч`;
+            document.getElementById('cat-title').textContent = cat.label;
+            const sub = document.getElementById('cat-sub');
+            sub.textContent = cat.subtitle; sub.className = 'px-2.5 py-0.5 text-xs font-semibold rounded border ' + acc.chip;
+            document.getElementById('cat-section').className = 'glass-card rounded-xl p-6 border-l-4 ' + acc.border;
+            document.getElementById('cat-hint').innerHTML =
+                `Скор &gt; 0 → <b class="text-emerald-400">${escapeHtml(cat.up_label)}</b>, скор &lt; 0 → <b class="text-rose-400">${escapeHtml(cat.down_label)}</b>. ` +
+                (cat.group === 'stocks' ? `Горизонт — свинг (3–10 торговых дней). Сентимент — фильтр направления, а не сигнал входа. ` : '') +
+                `Источники: Telegram + RSS, фильтр Qwen → FinBERT + Qwen.`;
+            document.getElementById('w-note').textContent =
+                `${d.w_finbert.toFixed(1)}·FinBERT + ${(1 - d.w_finbert).toFixed(1)}·Qwen`;
+
+            if (selectedHL === null || !d.half_lives.includes(selectedHL)) selectedHL = d.primary_hl;
+            renderHlSwitch(d.half_lives);
+
+            const warn = document.getElementById('bg-warning');
+            if (d.warnings && d.warnings.length) { warn.textContent = '⚠ ' + d.warnings.join(' '); warn.classList.remove('hidden'); }
+            else warn.classList.add('hidden');
+
+            // «Посты»
+            const c = d.posts || {};
+            const pend = (c.pending_judge || 0) + (c.pending_finbert || 0) + (c.pending_qwen || 0);
+            const postsTile = `<div class="rounded-xl p-4 bg-black/30 border border-cardborder">
+                <div class="flex justify-between items-center mb-2"><span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Новости категории</span>
+                <i data-lucide="database" class="w-4 h-4 ${acc.text}"></i></div>
+                <div class="text-3xl font-extrabold text-white">${c.important ?? '—'}</div>
+                <div class="text-[11px] text-gray-500 mt-1">важных (без дублей), за 24 ч: ${c.posts_24h ?? 0}</div>
+                <div class="text-[11px] text-gray-400 mt-3 space-y-0.5 border-t border-cardborder pt-2">
+                    <div class="flex justify-between"><span>Мусор / дублей</span><span class="text-gray-200">${c.trash ?? 0} / ${c.dups ?? 0}</span></div>
+                    <div class="flex justify-between"><span>В очереди: фильтр · FB · Qwen</span><span class="${pend ? 'text-amber-400' : 'text-gray-200'}">${c.pending_judge ?? 0} · ${c.pending_finbert ?? 0} · ${c.pending_qwen ?? 0}</span></div>
+                    <div class="flex justify-between"><span>Последняя новость</span><span class="text-gray-200">${agoText(c.last_post)}</span></div>
+                </div></div>`;
+
+            const marketTiles = (d.markets || []).map(marketTile).join('') + stockTile(d.stock);
+
+            if (!d.has_data) {
+                document.getElementById('tiles').innerHTML = marketTiles +
+                    `<div class="rounded-xl p-4 bg-black/30 border border-cardborder md:col-span-2 flex items-center text-sm text-gray-500">
+                        Пока нет оценённых новостей для этой категории — дождитесь первого цикла конвейера${pend ? ` (в очереди: ${pend})` : ''}.</div>` + postsTile;
+                setTilesGrid();
+                document.getElementById('bg-table-body').innerHTML = '<tr><td colspan="7" class="py-6 text-center text-gray-500 font-sans">Нет данных</td></tr>';
+                document.getElementById('cat-badge').classList.add('hidden');
+                lucide.createIcons();
+                return;
+            }
+
+            const sel = d.rows.find(r => r.hl === selectedHL) || d.rows[0];
+            const lab = sel.combined.shrunk >= 0.05 ? 'BULLISH' : sel.combined.shrunk <= -0.05 ? 'BEARISH' : 'NEUTRAL';
+            const badge = document.getElementById('cat-badge');
+            badge.classList.remove('hidden');
+            badge.className = 'px-2.5 py-0.5 text-xs font-bold rounded border ' + (lab === 'BULLISH' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                : lab === 'BEARISH' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-gray-500/20 text-gray-400 border-gray-500/30');
+            badge.textContent = lab === 'BULLISH' ? cat.up_label : lab === 'BEARISH' ? cat.down_label : 'Нейтрально';
+
+            const hlTxt = 'полупериод ' + sel.hl + ' ч';
+            document.getElementById('tiles').innerHTML = marketTiles +
+                scoreTile('Скор сентимента', hlTxt, sel.combined.shrunk, `итог · z ${fmtSigned(sel.combined.z, 2)}σ`, acc.text) +
+                scoreTile('FinBERT', hlTxt, sel.finbert.shrunk, `avg ${fmtSigned(sel.finbert.avg)} · z ${fmtSigned(sel.finbert.z, 2)}σ · W ${sel.finbert.w.toFixed(1)} · n ${d.counts.finbert_n}`, 'text-amber-400') +
+                scoreTile('Qwen', hlTxt, sel.qwen.shrunk, `avg ${fmtSigned(sel.qwen.avg)} · z ${fmtSigned(sel.qwen.z, 2)}σ · W ${sel.qwen.w.toFixed(1)} · n ${d.counts.qwen_n}`, 'text-blue-400') +
+                postsTile;
+
+            setTilesGrid();
+            document.getElementById('bg-table-body').innerHTML = d.rows.map(r => {
+                const f = r.finbert, q = r.qwen, on = r.hl === selectedHL;
+                const w = Math.abs(f.w - q.w) > 0.05 ? f.w.toFixed(1) + ' / ' + q.w.toFixed(1) : f.w.toFixed(1);
+                return `<tr onclick="selectHL(${r.hl})" class="cursor-pointer hover:bg-cardborder/30 ${on ? 'bg-blue-500/10' : ''}">
+                    <td class="py-2 px-2 font-sans font-semibold ${on ? 'text-blue-300' : 'text-gray-300'}">${r.hl} ч</td>
+                    <td class="py-2 px-2 font-bold ${scoreColor(r.combined.shrunk)}">${fmtSigned(r.combined.shrunk)}</td>
+                    <td class="py-2 px-2 ${scoreColor(f.shrunk)}">${fmtSigned(f.shrunk)}</td>
+                    <td class="py-2 px-2 text-gray-400">${fmtSigned(f.z, 2)}</td>
+                    <td class="py-2 px-2 ${scoreColor(q.shrunk)}">${fmtSigned(q.shrunk)}</td>
+                    <td class="py-2 px-2 text-gray-400">${fmtSigned(q.z, 2)}</td>
+                    <td class="py-2 px-2 text-right text-gray-400">${w}</td></tr>`;
+            }).join('');
+
+            const n = d.norm || {};
+            document.getElementById('bg-norm-note').textContent = n.finbert
+                ? `Нормировка z: FinBERT μ=${n.finbert.mu.toFixed(3)}, σ=${n.finbert.sigma.toFixed(3)} (${n.finbert.source}); Qwen μ=${n.qwen.mu.toFixed(3)}, σ=${n.qwen.sigma.toFixed(3)} (${n.qwen.source}).` : '';
+            lucide.createIcons();
+        }
+
+        // ---------- график ----------
+        function renderChart(s) {
+            const pts = s.points || [], hl = selectedHL ?? s.primary_hl;
+            const pick = (p, name) => { const r = p.rows.find(x => x.hl === hl); return r ? r[name].shrunk : null; };
+            const labels = pts.map(p => parseUtc(p.asof).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}));
+            const fb = pts.map(p => pick(p, 'finbert')), qw = pts.map(p => pick(p, 'qwen')), cb = pts.map(p => pick(p, 'combined'));
+            const maxAbs = Math.max(0.2, ...fb.concat(qw, cb).filter(v => v !== null).map(Math.abs));
+            const lim = Math.ceil(maxAbs * 1.25 * 10) / 10;
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(document.getElementById('bgChart').getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets: [
+                    { label: `Итог (${hl} ч)`, data: cb, borderColor: '#F8FAFC', backgroundColor: 'rgba(248,250,252,0.06)', fill: true, tension: 0.3, borderWidth: 2.5, pointRadius: 0 },
+                    { label: 'FinBERT', data: fb, borderColor: '#F59E0B', tension: 0.3, borderWidth: 1.5, pointRadius: 0, borderDash: [4, 3] },
+                    { label: 'Qwen', data: qw, borderColor: '#3B82F6', tension: 0.3, borderWidth: 1.5, pointRadius: 0, borderDash: [4, 3] }
+                ] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { min: -lim, max: lim, grid: { color: ctx => ctx.tick.value === 0 ? '#4B5563' : '#212B38' }, ticks: { color: '#9CA3AF' } },
+                        x: { grid: { color: '#212B38' }, ticks: { color: '#9CA3AF', maxTicksLimit: 8, autoSkip: true } }
+                    },
+                    plugins: { legend: { labels: { color: '#E2E8F0', font: { size: 11 } } } }
+                }
+            });
+        }
+
+        // ---------- посты и источники ----------
+        function renderPosts(posts) {
+            const box = document.getElementById('bg-posts');
+            if (!posts || posts.length === 0) { box.innerHTML = '<div class="text-center text-gray-500 text-xs py-6">Оценённых новостей пока нет</div>'; return; }
+            // skipped — FinBERT не применялся (текст не на английском): показываем «—», а не «…» (= ещё в очереди)
+            const chip = (label, v, color, skipped) => `<span class="flex flex-col items-center" ${skipped ? 'title="FinBERT понимает только английский — для этого поста пропущен"' : ''}><span class="text-gray-500">${label}</span><span class="${v === null || v === undefined ? 'text-gray-600' : color} font-bold mt-0.5">${v === null || v === undefined ? (skipped ? '—' : '…') : v.toFixed(2)}</span></span>`;
+            box.innerHTML = posts.map(p => {
+                const name = p.kind === 'rss' ? p.source.replace(/^rss:/, '') : '@' + p.source;
+                const url = safeUrl(p.url);
+                const text = escapeHtml(p.display_text);
+                return `<div class="bg-cardbg/80 border border-cardborder rounded-lg p-3 flex flex-col lg:flex-row justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${p.kind === 'rss' ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'}">${escapeHtml(name)}</span>
+                            <span class="text-[11px] text-gray-400 font-mono">${parseUtc(p.posted_at).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})}</span>
+                        </div>
+                        <p class="text-sm text-gray-200 line-clamp-2">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="hover:underline">${text}</a>` : text}</p>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs font-mono bg-black/40 px-3 py-2 rounded-lg border border-gray-700 self-start lg:self-center shrink-0">
+                        ${chip('FinBERT', p.finbert_score, 'text-amber-400', p.finbert_score === null && p.finbert_neu !== null && p.finbert_neu !== undefined)}${chip('Qwen', p.qwen_score, 'text-blue-400')}
+                    </div></div>`;
+            }).join('');
+        }
+
+        function renderSources(list, pipelineSources) {
+            const box = document.getElementById('sources');
+            box.innerHTML = (list || []).map(s => {
+                const url = safeUrl(s.url);
+                const name = s.kind === 'tg' ? '@' + s.id : s.id;
+                const err = pipelineSources && pipelineSources[s.id] && pipelineSources[s.id].error;
+                return `<div class="bg-cardbg/80 border ${err ? 'border-rose-500/40' : 'border-cardborder'} rounded-lg p-2.5 text-xs">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-semibold ${s.kind === 'tg' ? 'text-cyan-400' : 'text-indigo-300'} truncate">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="hover:underline">${escapeHtml(name)}</a>` : escapeHtml(name)}</span>
+                        <span class="flex items-center gap-1.5 shrink-0">${s.gated ? '<span class="text-[10px] text-cyan-400">по словам</span>' : ''}<span class="text-[10px] uppercase text-gray-500">${s.kind}</span></span>
+                    </div>
+                    <div class="flex justify-between text-[11px] text-gray-500 mt-1"><span>за 7 дн: <b class="text-gray-300">${s.posts_7d}</b></span><span>${agoText(s.last_post)}</span></div>
+                    ${err ? `<div class="text-[10px] text-rose-400 mt-1 break-words">${escapeHtml(err)}</div>` : ''}</div>`;
+            }).join('') || '<div class="text-xs text-gray-500">Нет источников</div>';
+        }
+
+        // ---------- загрузка ----------
+        async function load() {
+            try {
+                const base = '/api/v1/category/' + encodeURIComponent(CAT_KEY);
+                const [snapRes, serRes, postsRes] = await Promise.all([fetch(base), fetch(base + '/series?hours=' + SERIES_HOURS), fetch(base + '/posts?limit=40')]);
+                if (snapRes.status === 404) { document.getElementById('cat-title').textContent = 'Категория не найдена'; return; }
+                snapshot = await snapRes.json(); series = await serRes.json();
+                const posts = await postsRes.json();
+                renderStatus(snapshot.pipeline || {});
+                renderSnapshot(snapshot); renderChart(series); renderPosts(posts);
+                renderSources(snapshot.sources, (snapshot.pipeline || {}).sources);
+                clearTimeout(pollTimer);
+                if (snapshot.pipeline && snapshot.pipeline.running) pollTimer = setTimeout(load, 5000);
+            } catch (err) {
+                console.error('Ошибка загрузки категории:', err);
+                const el = document.getElementById('bg-status');
+                el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border bg-rose-500/10 text-rose-400 border-rose-500/20';
+                el.textContent = 'Ошибка загрузки API';
+            }
+        }
+
+        async function refreshPipeline() {
+            const btn = document.getElementById('bg-refresh-btn');
+            btn.disabled = true; btn.classList.add('opacity-60');
+            try { await fetch('/api/v1/pipeline/refresh', { method: 'POST' }); setTimeout(load, 1500); }
+            finally { setTimeout(() => { btn.disabled = false; btn.classList.remove('opacity-60'); }, 3000); }
+        }
+
+        lucide.createIcons();
+        load();
+        setInterval(load, 60000);
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Regime | Акции США</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { darkbg: '#0B0E14', cardbg: '#141A23', cardborder: '#212B38' } } }
+        }
+    </script>
+    <style>
+        body { background-color: #0B0E14; color: #E2E8F0; font-family: system-ui, -apple-system, sans-serif; }
+        .glass-card { background: #141A23; border: 1px solid #212B38; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        tr.stock-row { cursor: pointer; transition: background-color .12s ease; }
+        tr.stock-row:hover { background-color: rgba(33, 43, 56, 0.55); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!--NAV-->
+
+    <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-2xl font-bold tracking-wide text-white">АКЦИИ США · СВИНГ</h1>
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">мега-кэпы · горизонт 3–10 дней</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Сентимент новостей по тикерам: Telegram + RSS → фильтр Qwen → FinBERT + Qwen → затухающий скор</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <span id="pipeline-chip" class="px-2.5 py-1 text-[11px] font-semibold rounded border bg-gray-500/10 text-gray-400 border-gray-500/20">Конвейер…</span>
+            <span id="last-updated" class="text-xs text-gray-400"></span>
+            <button onclick="load()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-all shadow-lg shadow-blue-600/20 active:scale-95">
+                <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i> Обновить
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-6">
+
+        <!-- Рынок США -->
+        <a id="market-card" href="/stock/spx" class="glass-card rounded-xl p-5 block border-l-4 border-cyan-500 hover:border-cyan-400 transition-colors">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-center">
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Рынок США · общий фон</span>
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+                    </div>
+                    <div class="flex items-end gap-3">
+                        <div id="mkt-score" class="text-4xl font-extrabold text-white">—</div>
+                        <div id="mkt-label" class="mb-1"></div>
+                    </div>
+                    <div id="mkt-bar"></div>
+                    <div id="mkt-detail" class="text-[10px] text-gray-500 font-mono mt-2"></div>
+                </div>
+                <div id="mkt-quotes" class="lg:col-span-2 grid grid-cols-3 gap-3"></div>
+            </div>
+        </a>
+
+        <!-- Таблица тикеров -->
+        <div class="glass-card rounded-xl p-5">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Тикеры</h2>
+                    <div id="hl-switch" class="flex rounded-lg overflow-hidden border border-cardborder text-xs"></div>
+                    <span class="text-[11px] text-gray-500">полупериод затухания новостей</span>
+                </div>
+                <div id="sort-switch" class="flex rounded-lg overflow-hidden border border-cardborder text-xs"></div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm min-w-[860px]">
+                    <thead class="text-[11px] text-gray-400 border-b border-cardborder uppercase font-medium">
+                        <tr>
+                            <th class="pb-2 px-2">Тикер</th>
+                            <th class="pb-2 px-2 text-right">Цена</th>
+                            <th class="pb-2 px-2 text-right">1 д</th>
+                            <th class="pb-2 px-2 text-right">5 сессий</th>
+                            <th class="pb-2 px-2">Отчётность</th>
+                            <th class="pb-2 px-2 w-56 text-white">Сентимент</th>
+                            <th class="pb-2 px-2 text-right text-amber-400">FB</th>
+                            <th class="pb-2 px-2 text-right text-blue-400">QW</th>
+                            <th class="pb-2 px-2 text-right">Постов 24 ч</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-body" class="divide-y divide-cardborder/50">
+                        <tr><td colspan="9" class="py-8 text-center text-gray-500">Загрузка…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p id="legend" class="text-[11px] text-gray-500 leading-relaxed mt-4"></p>
+        </div>
+
+        <p class="text-[11px] text-gray-500 leading-relaxed">
+            Это <span class="text-gray-300">фильтр направления</span> для свинг-сетапа, а не сигнал входа: вход определяют ваш технический анализ и ордерфлоу.
+            Скор по тикеру считается только по новостям, где компания упомянута (ключевые слова + персональные ленты Yahoo / Google News).
+            Если до отчётности осталось ≤ 7 дней, сентимент слабый ориентир: главный драйвер — сама отчётность.
+        </p>
+    </main>
+
+    <script>
+        let data = null, hlSel = null, sortMode = 'ticker', pollTimer = null;
+
+        // ---------- утилиты ----------
+        function escapeHtml(v) {
+            return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+        function fmtSigned(x, nd = 3) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : '') + x.toFixed(nd); }
+        function scoreColor(x) {
+            if (x === null || x === undefined) return 'text-gray-500';
+            if (x >= 0.05) return 'text-emerald-400';
+            if (x <= -0.05) return 'text-rose-400';
+            return 'text-gray-300';
+        }
+        function pct(x) {
+            if (x === null || x === undefined) return '<span class="text-gray-600">—</span>';
+            return `<span class="${x >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${x >= 0 ? '▲' : '▼'} ${Math.abs(x).toFixed(2)}%</span>`;
+        }
+        function barClass(v) { return 'absolute top-0 bottom-0 ' + (v >= 0.05 ? 'bg-emerald-500' : v <= -0.05 ? 'bg-rose-500' : 'bg-gray-500'); }
+        function centeredBar(v, extra = 'mt-2') {
+            const val = Math.max(-1, Math.min(1, v || 0)), w = Math.abs(val) * 50;
+            return `<div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden relative ${extra}">
+                <div class="absolute top-0 bottom-0 left-1/2 w-px bg-gray-600"></div>
+                <div class="${barClass(val)}" style="left:${val >= 0 ? 50 : 50 - w}%;width:${w}%"></div></div>`;
+        }
+        function label(x) { return x === null || x === undefined || Math.abs(x) < 0.05 ? 'NEUTRAL' : x > 0 ? 'BULLISH' : 'BEARISH'; }
+        function labelBadge(x) {
+            const l = label(x);
+            const cls = l === 'BULLISH' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : l === 'BEARISH' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+            return `<span class="px-2 py-0.5 text-[10px] font-bold rounded border ${cls}">${l}</span>`;
+        }
+        function agoText(ts) {
+            if (!ts) return '—';
+            const m = Math.max(0, Math.round((Date.now() - new Date(String(ts).replace(' ', 'T') + 'Z').getTime()) / 60000));
+            return m < 90 ? m + ' мин назад' : m < 60 * 36 ? (m / 60).toFixed(1) + ' ч назад' : Math.round(m / 1440) + ' дн назад';
+        }
+
+        // ---------- статус конвейера ----------
+        function renderPipelineChip(p) {
+            const el = document.getElementById('pipeline-chip');
+            const map = {
+                ok:               ['Telegram подключён', 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'],
+                needs_login:      ['Нужен вход в Telegram', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                no_credentials:   ['Нет TG_API_ID / TG_API_HASH', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                telethon_missing: ['Не установлен telethon', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                disabled:         ['Telegram выключен', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+                error:            ['Ошибка Telegram', 'bg-rose-500/10 text-rose-400 border-rose-500/20'],
+                idle:             ['Конвейер: ожидание', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+            };
+            const [t0, cls] = map[p.telegram] || map.idle;
+            el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border ' + cls;
+            el.textContent = p.running ? '⏳ ' + p.stage + ' · ' + t0 : t0;
+            el.title = (p.errors && p.errors.length) ? p.errors.join('\n') : '';
+        }
+
+        // ---------- переключатели ----------
+        function renderSwitches() {
+            document.getElementById('hl-switch').innerHTML = data.half_lives.map(hl =>
+                `<button onclick="selectHL('${hl}')" class="px-3 py-1.5 transition-colors ${String(hl) === String(hlSel) ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 hover:bg-gray-800'}">${hl} ч</button>`).join('');
+            const sorts = [['ticker', 'По тикеру'], ['score', 'По скору ↓'], ['abs', 'По силе |скора|']];
+            document.getElementById('sort-switch').innerHTML = sorts.map(([k, t]) =>
+                `<button onclick="selectSort('${k}')" class="px-3 py-1.5 transition-colors ${k === sortMode ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 hover:bg-gray-800'}">${t}</button>`).join('');
+        }
+        function selectHL(hl) { hlSel = hl; render(); }
+        function selectSort(k) { sortMode = k; render(); }
+
+        function scoreAt(item) {   // скор выбранного полупериода (или null, если по тикеру ещё нет оценённых новостей)
+            return item.by_hl && item.by_hl[hlSel] ? item.by_hl[hlSel] : null;
+        }
+
+        // ---------- рынок США ----------
+        function renderMarket(item) {
+            const s = scoreAt(item);
+            document.getElementById('mkt-score').innerHTML = s ? `<span class="${scoreColor(s.combined).replace('text-gray-300', 'text-white')}">${fmtSigned(s.combined)}</span>` : '—';
+            document.getElementById('mkt-label').innerHTML = s ? labelBadge(s.combined) + `<span class="ml-2 text-xs text-gray-400">${label(s.combined) === 'BULLISH' ? escapeHtml(item.up_label) : label(s.combined) === 'BEARISH' ? escapeHtml(item.down_label) : ''}</span>` : '';
+            document.getElementById('mkt-bar').innerHTML = s ? centeredBar(s.combined, 'mt-3') : '';
+            document.getElementById('mkt-detail').textContent = s
+                ? `FB ${fmtSigned(s.finbert, 2)} · QW ${fmtSigned(s.qwen, 2)} · ${item.posts_24h} п./24ч${item.pending ? ' · в очереди ' + item.pending : ''}`
+                : (item.pending ? `Идёт обработка новостей: ${item.pending}` : 'Нет оценённых постов');
+            const q = (item.quote && item.quote.markets) || [];
+            document.getElementById('mkt-quotes').innerHTML = q.map(m => `
+                <div class="rounded-xl p-3 bg-black/30 border border-cardborder">
+                    <div class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">${escapeHtml(m.name)}</div>
+                    <div class="text-xl font-extrabold text-white">${m.price === null || m.price === undefined ? '—' : m.price.toLocaleString('en-US', {maximumFractionDigits: 2})}</div>
+                    <div class="text-xs mt-1">${m.name === 'VIX' ? (m.change_pct === null ? '' : `<span class="${m.change_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}">${m.change_pct >= 0 ? '▲' : '▼'} ${Math.abs(m.change_pct).toFixed(2)}%</span>`) : pct(m.change_pct)}</div>
+                </div>`).join('');
+        }
+
+        // ---------- таблица тикеров ----------
+        function earningsCell(q) {
+            if (!q || !q.next_earnings) return '<span class="text-gray-600 text-xs">нет данных</span>';
+            const d = q.days_to_earnings, warn = d !== null && d !== undefined && d <= 7;
+            return `<span class="font-mono text-xs ${warn ? 'text-amber-400 font-bold' : 'text-gray-300'}">${escapeHtml(q.next_earnings)}</span>
+                    <span class="text-[11px] ${warn ? 'text-amber-400' : 'text-gray-500'}">${d <= 0 ? 'сегодня' : 'через ' + d + ' дн.'}${warn ? ' ⚠' : ''}</span>`;
+        }
+
+        function renderRows() {
+            let items = data.items.filter(i => i.key !== 'spx');
+            const val = i => { const s = scoreAt(i); return s ? s.combined : null; };
+            if (sortMode === 'score') items.sort((a, b) => (val(b) ?? -9) - (val(a) ?? -9));
+            else if (sortMode === 'abs') items.sort((a, b) => Math.abs(val(b) ?? 0) - Math.abs(val(a) ?? 0));
+            const ACC = {emerald: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', sky: 'text-sky-400 border-sky-500/30 bg-sky-500/10',
+                slate: 'text-slate-300 border-slate-500/30 bg-slate-500/10', orange: 'text-orange-400 border-orange-500/30 bg-orange-500/10',
+                rose: 'text-rose-400 border-rose-500/30 bg-rose-500/10', indigo: 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10',
+                amber: 'text-amber-400 border-amber-500/30 bg-amber-500/10', teal: 'text-teal-400 border-teal-500/30 bg-teal-500/10'};
+            document.getElementById('stock-body').innerHTML = items.map(i => {
+                const s = scoreAt(i), q = i.quote || {};
+                const scoreCell = s
+                    ? `<div class="flex items-center justify-between gap-2"><span class="font-mono font-bold ${scoreColor(s.combined).replace('text-gray-300', 'text-white')}">${fmtSigned(s.combined)}</span>${labelBadge(s.combined)}</div>${centeredBar(s.combined, 'mt-1.5')}`
+                    : `<span class="text-xs text-gray-500">${i.pending ? 'обработка: ' + i.pending : 'нет оценённых новостей'}</span>`;
+                return `<tr class="stock-row" onclick="location.href='/stock/${encodeURIComponent(i.key)}'">
+                    <td class="py-3 px-2">
+                        <div class="flex items-center gap-3">
+                            <span class="px-2 py-0.5 text-xs font-bold rounded border ${ACC[i.accent] || ACC.slate}">${escapeHtml(i.key)}</span>
+                            <div><div class="text-sm text-gray-100">${escapeHtml(i.name)}</div><div class="text-[11px] text-gray-500">${escapeHtml(i.sector)}</div></div>
+                        </div></td>
+                    <td class="py-3 px-2 text-right font-mono text-gray-100">${q.price === null || q.price === undefined ? '—' : q.price.toFixed(2)}</td>
+                    <td class="py-3 px-2 text-right font-mono text-xs">${pct(q.change_pct)}</td>
+                    <td class="py-3 px-2 text-right font-mono text-xs">${pct(q.change_5d_pct)}</td>
+                    <td class="py-3 px-2">${earningsCell(q)}</td>
+                    <td class="py-3 px-2">${scoreCell}</td>
+                    <td class="py-3 px-2 text-right font-mono text-xs ${scoreColor(s ? s.finbert : null)}">${s ? fmtSigned(s.finbert, 2) : '—'}</td>
+                    <td class="py-3 px-2 text-right font-mono text-xs ${scoreColor(s ? s.qwen : null)}">${s ? fmtSigned(s.qwen, 2) : '—'}</td>
+                    <td class="py-3 px-2 text-right text-gray-300">${i.posts_24h}<div class="text-[10px] text-gray-500">${agoText(i.last_post)}</div></td></tr>`;
+            }).join('') || '<tr><td colspan="9" class="py-8 text-center text-gray-500">Нет тикеров (STOCKS_ENABLED=0?)</td></tr>';
+        }
+
+        function render() {
+            renderSwitches();
+            const m = data.items.find(i => i.key === 'spx');
+            if (m) renderMarket(m);
+            renderRows();
+            const w = data.w_finbert;
+            document.getElementById('legend').innerHTML =
+                `<b>Сентимент</b> = ${w.toFixed(1)}·FinBERT + ${(1 - w).toFixed(1)}·Qwen (оба shrunk, полупериод ${hlSel} ч, шкала −1…+1, знак — «цена акции растёт/падает»). ` +
+                `<b>FB / QW</b> — отдельные оценки моделей. Клик по строке — детали: график, полупериоды, новости, источники.`;
+            lucide.createIcons();
+        }
+
+        // ---------- загрузка ----------
+        async function load() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('/api/v1/stocks/overview');
+                data = await res.json();
+                if (hlSel === null || !data.half_lives.map(String).includes(String(hlSel))) hlSel = String(data.primary_hl);
+                renderPipelineChip(data.pipeline || {});
+                render();
+                document.getElementById('last-updated').textContent = 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU');
+                clearTimeout(pollTimer);
+                if (data.pipeline && data.pipeline.running) pollTimer = setTimeout(load, 5000);
+            } catch (err) {
+                console.error('Ошибка загрузки акций:', err);
+                const el = document.getElementById('pipeline-chip');
+                el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border bg-rose-500/10 text-rose-400 border-rose-500/20';
+                el.textContent = 'Ошибка API';
+            } finally {
+                icon.classList.remove('animate-spin');
+            }
+        }
+
+        lucide.createIcons();
+        load();
+        setInterval(load, 60000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Regime Dashboard | Gold (GC)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0B0E14',
+                        cardbg: '#141A23',
+                        cardborder: '#212B38',
+                        bullish: '#10B981',
+                        bearish: '#EF4444',
+                        neutral: '#6B7280'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0B0E14; color: #E2E8F0; font-family: system-ui, -apple-system, sans-serif; }
+        .glass-card { background: #141A23; border: 1px solid #212B38; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        .glow-bullish { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); border-color: rgba(16, 185, 129, 0.4); }
+        .glow-bearish { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.4); }
+        .glow-neutral { box-shadow: 0 0 20px rgba(107, 114, 128, 0.2); }
+        a.cat-card:hover { transform: translateY(-2px); }
+        a.cat-card { transition: transform .15s ease, border-color .15s ease; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!--NAV-->
+
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold tracking-wide text-white">QUANT REGIME ENGINE</h1>
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">XAUUSD / GC</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Институциональный ML & NLP Аналитический Движок</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <span id="pipeline-chip" class="px-2.5 py-1 text-[11px] font-semibold rounded border bg-gray-500/10 text-gray-400 border-gray-500/20">Конвейер…</span>
+            <span id="last-updated" class="text-xs text-gray-400">Обновление...</span>
+
+            <button onclick="fetchData(); fetchOverview()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-all shadow-lg shadow-blue-600/20 active:scale-95">
+                <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i> Синхронизировать
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-6">
+
+        <!-- 4 категории: общий сентимент · нефть · гос. облигации · индекс доллара -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+
+            <!-- Общий сентимент -->
+            <a href="/category/general" id="card-general" class="cat-card glass-card rounded-xl p-5 block cursor-pointer group border-l-4 border-amber-500 hover:border-amber-400">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-amber-400 transition-colors">Общий сентимент</span>
+                    <i data-lucide="globe" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white mb-2" id="card-general-main">—</div>
+                <div class="flex items-center gap-2 text-xs" id="card-general-change"><span class="text-gray-500">Золото · макрофон</span></div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-cardborder pt-2">
+                    <div class="flex justify-between"><span>Постов за 24 ч:</span><span id="card-general-score" class="font-bold text-white">—</span></div>
+                    <div class="text-[10px] text-gray-500 font-mono mt-1" id="card-general-detail"></div>
+                </div>
+            </a>
+
+            <!-- Нефть -->
+            <a href="/category/oil" id="card-oil" class="cat-card glass-card rounded-xl p-5 block cursor-pointer group border-l-4 border-orange-500 hover:border-orange-400">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-orange-400 transition-colors">Нефть · WTI</span>
+                    <i data-lucide="droplet" class="w-4 h-4 text-orange-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white mb-2" id="card-oil-main">--.--</div>
+                <div class="flex items-center gap-1.5 text-xs" id="card-oil-change"><span>0.00%</span></div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-cardborder pt-2">
+                    <div class="flex justify-between"><span>Скор сентимента:</span><span id="card-oil-score" class="font-bold text-white">—</span></div>
+                    <div class="text-[10px] text-gray-500 font-mono mt-1" id="card-oil-detail"></div>
+                </div>
+            </a>
+
+            <!-- Гос. облигации -->
+            <a href="/category/us10y" id="card-us10y" class="cat-card glass-card rounded-xl p-5 block cursor-pointer group border-l-4 border-purple-500 hover:border-purple-400">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-purple-400 transition-colors">US10Y Yields</span>
+                    <i data-lucide="landmark" class="w-4 h-4 text-purple-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white mb-2" id="card-us10y-main">--.--%</div>
+                <div class="flex items-center gap-1.5 text-xs" id="card-us10y-change"><span>0.0 bps</span></div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-cardborder pt-2">
+                    <div class="flex justify-between"><span>Скор сентимента:</span><span id="card-us10y-score" class="font-bold text-white">—</span></div>
+                    <div class="text-[10px] text-gray-500 font-mono mt-1" id="card-us10y-detail"></div>
+                </div>
+            </a>
+
+            <!-- Индекс доллара -->
+            <a href="/category/dxy" id="card-dxy" class="cat-card glass-card rounded-xl p-5 block cursor-pointer group border-l-4 border-emerald-500 hover:border-emerald-400">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-emerald-400 transition-colors">US Dollar (DXY)</span>
+                    <i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white mb-2" id="card-dxy-main">--.--</div>
+                <div class="flex items-center gap-1.5 text-xs" id="card-dxy-change"><span>0.00%</span></div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-cardborder pt-2">
+                    <div class="flex justify-between"><span>Скор сентимента:</span><span id="card-dxy-score" class="font-bold text-white">—</span></div>
+                    <div class="text-[10px] text-gray-500 font-mono mt-1" id="card-dxy-detail"></div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Market Bias (ML) + Confidence -->
+        <div id="bias-card" onclick="openBiasModal()" class="glass-card rounded-xl p-5 transition-all duration-300 cursor-pointer hover:border-blue-500/50 group">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-medium text-gray-400 uppercase tracking-wider group-hover:text-blue-400 transition-colors">Market Bias (ML) 📊</span>
+                        <span id="bias-badge" class="px-2 py-0.5 text-xs font-bold rounded">---</span>
+                    </div>
+                    <div class="text-3xl font-extrabold text-white mb-2" id="market-bias-score">0.0000</div>
+                    <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden relative mt-3">
+                        <div id="bias-bar" class="h-full bg-gray-500 transition-all duration-500" style="width: 50%;"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-2">
+                        <span>-1.0 Bearish</span>
+                        <span class="text-blue-400 font-semibold underline">Нажмите для графика</span>
+                        <span>+1.0 Bullish</span>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Уровень уверенности ML-модели (Confidence)</h2>
+                    <p class="text-xs text-gray-400">Вероятность преобладающего направления, рассчитанная Случайным Лесом.</p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-full bg-gray-800 h-3 rounded-full overflow-hidden">
+                            <div id="confidence-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%;"></div>
+                        </div>
+                        <span id="confidence-text" class="text-lg font-extrabold text-blue-400 min-w-[50px]">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-[11px] text-gray-500 leading-relaxed">
+            Скор сентимента — итог по новостям из Telegram и RSS за ~24 ч (затухающее среднее, шкала −1…+1):
+            <span class="text-gray-400">0.3·FinBERT + 0.7·Qwen</span>. Знак читается относительно актива:
+            золото ↑ · цена нефти ↑ · доходность US10Y ↑ · DXY ↑. Нажмите на карточку, чтобы открыть подробности.
+        </p>
+    </main>
+
+    <!-- MODAL: MARKET BIAS HISTORICAL CHART -->
+    <div id="bias-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-card rounded-2xl w-full max-w-4xl p-6 relative border border-blue-500/30">
+            <button onclick="event.stopPropagation(); closeBiasModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white bg-gray-800 p-2 rounded-lg">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="line-chart" class="text-blue-400"></i> Динамика Market Bias & Sentiment
+                </h2>
+                <p class="text-xs text-gray-400 mt-1">Историческая временная шкала показателей сентимента и макро-факторов</p>
+            </div>
+            <div class="h-80 relative w-full">
+                <canvas id="modalBiasChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let modalChartInstance = null;
+        let pollTimer = null;
+
+        // ---------- утилиты ----------
+        function parseUtc(s) { return new Date(String(s).replace(' ', 'T') + 'Z'); }
+        function fmtSigned(x, nd = 3) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : '') + x.toFixed(nd); }
+        function scoreColor(x, thr = 0.05) {
+            if (x === null || x === undefined) return 'text-gray-500';
+            if (x >= thr) return 'text-emerald-400';
+            if (x <= -thr) return 'text-rose-400';
+            return 'text-gray-300';
+        }
+        function arrow(x) { return x >= 0 ? '▲' : '▼'; }
+        function dirColor(x) { return x >= 0 ? 'text-emerald-400' : 'text-rose-400'; }
+
+        // ---------- Market Bias: модалка с графиком ----------
+        function openBiasModal() {
+            document.getElementById('bias-modal').classList.remove('hidden');
+            requestAnimationFrame(() => { setTimeout(renderModalChart, 50); });
+        }
+        function closeBiasModal() { document.getElementById('bias-modal').classList.add('hidden'); }
+
+        async function renderModalChart() {
+            try {
+                const res = await fetch('/api/v1/sentiment/history');
+                const history = await res.json();
+                if (!Array.isArray(history) || history.length === 0) return;
+
+                const labels = history.map(item => new Date(item.timestamp).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'}));
+                const biasData = history.map(item => item.market_bias);
+                const sentimentData = history.map(item => item.sentiment_score);
+                const macroData = history.map(item => item.macro_score);
+
+                const ctx = document.getElementById('modalBiasChart').getContext('2d');
+                if (modalChartInstance) modalChartInstance.destroy();
+                modalChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'Market Bias (ML)', data: biasData, borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.15)', fill: true, tension: 0.3, borderWidth: 2 },
+                            { label: 'Sentiment Score', data: sentimentData, borderColor: '#F59E0B', borderDash: [4, 4], tension: 0.3, borderWidth: 2 },
+                            { label: 'Macro Score', data: macroData, borderColor: '#8B5CF6', tension: 0.3, borderWidth: 1.5 }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            y: { min: -1.0, max: 1.0, grid: { color: '#212B38' }, ticks: { color: '#9CA3AF' } },
+                            x: { grid: { color: '#212B38' }, ticks: { color: '#9CA3AF' } }
+                        },
+                        plugins: { legend: { labels: { color: '#E2E8F0', font: { size: 12 } } } }
+                    }
+                });
+            } catch (e) { console.error("Ошибка графика:", e); }
+        }
+
+        // ---------- Market Bias + Confidence (ML-модель) ----------
+        async function fetchData() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('/api/v1/sentiment/gold');
+                const data = await res.json();
+
+                const biasScore = data.market_bias_score;
+                document.getElementById('market-bias-score').innerText = (biasScore > 0 ? '+' : '') + biasScore.toFixed(4);
+
+                const biasCard = document.getElementById('bias-card');
+                const biasBadge = document.getElementById('bias-badge');
+                const biasBar = document.getElementById('bias-bar');
+                biasBar.style.width = Math.max(0, Math.min(100, ((biasScore + 1) / 2) * 100)) + '%';
+
+                biasCard.classList.remove('glow-bullish', 'glow-bearish', 'glow-neutral');
+                if (data.bias_label === 'BULLISH') {
+                    biasCard.classList.add('glow-bullish');
+                    biasBadge.className = 'px-2 py-0.5 text-xs font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                    biasBadge.innerText = 'BULLISH';
+                    biasBar.className = 'h-full bg-emerald-500 transition-all duration-500';
+                } else if (data.bias_label === 'BEARISH') {
+                    biasCard.classList.add('glow-bearish');
+                    biasBadge.className = 'px-2 py-0.5 text-xs font-bold rounded bg-rose-500/20 text-rose-400 border border-rose-500/30';
+                    biasBadge.innerText = 'BEARISH';
+                    biasBar.className = 'h-full bg-rose-500 transition-all duration-500';
+                } else {
+                    biasCard.classList.add('glow-neutral');
+                    biasBadge.className = 'px-2 py-0.5 text-xs font-bold rounded bg-gray-500/20 text-gray-400 border border-gray-500/30';
+                    biasBadge.innerText = 'NEUTRAL';
+                    biasBar.className = 'h-full bg-gray-500 transition-all duration-500';
+                }
+
+                const confPct = Math.round(data.confidence * 100);
+                document.getElementById('confidence-bar').style.width = confPct + '%';
+                document.getElementById('confidence-text').innerText = confPct + '%';
+                document.getElementById('last-updated').innerText = 'Обновлено: ' + new Date(data.last_updated).toLocaleTimeString();
+            } catch (err) {
+                console.error("Ошибка загрузки данных:", err);
+            } finally {
+                icon.classList.remove('animate-spin');
+            }
+        }
+
+        // ---------- Карточки категорий ----------
+        function renderPipelineChip(p) {
+            const el = document.getElementById('pipeline-chip');
+            const map = {
+                ok:               ['Telegram подключён', 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'],
+                needs_login:      ['Нужен вход в Telegram', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                no_credentials:   ['Нет TG_API_ID / TG_API_HASH', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                telethon_missing: ['Не установлен telethon', 'bg-amber-500/10 text-amber-400 border-amber-500/20'],
+                disabled:         ['Telegram выключен', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+                error:            ['Ошибка Telegram', 'bg-rose-500/10 text-rose-400 border-rose-500/20'],
+                idle:             ['Конвейер: ожидание', 'bg-gray-500/10 text-gray-400 border-gray-500/20'],
+            };
+            const [text0, cls] = map[p.telegram] || map.idle;
+            let text = text0;
+            if (p.running) text = '⏳ ' + p.stage + ' · ' + text0;
+            el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border ' + cls;
+            el.textContent = text;
+            el.title = (p.errors && p.errors.length) ? p.errors.join('\n') : '';
+        }
+
+        function detailLine(c) {
+            if (!c.has_data || !c.sentiment) return c.pending ? `Идёт обработка новостей: ${c.pending}` : 'Нет оценённых постов';
+            let t = `FB ${fmtSigned(c.sentiment.finbert, 2)} · QW ${fmtSigned(c.sentiment.qwen, 2)} · ${c.posts_24h} п./24ч`;
+            if (c.pending) t += ` · в очереди ${c.pending}`;
+            return t;
+        }
+
+        function renderCard(c) {
+            const sc = document.getElementById(`card-${c.key}-score`);
+            const detail = document.getElementById(`card-${c.key}-detail`);
+            const main = document.getElementById(`card-${c.key}-main`);
+            const change = document.getElementById(`card-${c.key}-change`);
+            const s = c.sentiment;
+            const combined = s ? s.combined : null;
+
+            if (c.key === 'general') {
+                // у общего сентимента главное число — сам скор
+                main.textContent = combined === null ? '—' : fmtSigned(combined, 3);
+                main.className = 'text-3xl font-extrabold mb-2 ' + (combined === null ? 'text-white' : scoreColor(combined).replace('text-gray-300', 'text-white'));
+                const lab = s ? s.label : null;
+                const badge = lab === 'BULLISH' ? ['bg-emerald-500/20 text-emerald-400 border-emerald-500/30', 'BULLISH · ' + c.up_label]
+                            : lab === 'BEARISH' ? ['bg-rose-500/20 text-rose-400 border-rose-500/30', 'BEARISH · ' + c.down_label]
+                            : ['bg-gray-500/20 text-gray-400 border-gray-500/30', 'NEUTRAL'];
+                change.innerHTML = lab ? `<span class="px-2 py-0.5 text-[10px] font-bold rounded border ${badge[0]}">${badge[1]}</span>`
+                                       : '<span class="text-gray-500">Золото · макрофон</span>';
+                sc.textContent = c.posts_24h;
+                detail.textContent = detailLine(c);
+                return;
+            }
+
+            const m = (c.markets && c.markets[0]) || null;
+            if (m && m.price !== null) {
+                main.textContent = c.key === 'us10y' ? m.price.toFixed(2) + '%' : m.price.toFixed(2);
+                let ch = '';
+                if (m.change_bps !== null) ch = `<span class="${dirColor(m.change_bps)}">${arrow(m.change_bps)} ${Math.abs(m.change_bps).toFixed(1)} bps (от Daily Close)</span>`;
+                else if (m.change_pct !== null) ch = `<span class="${dirColor(m.change_pct)}">${arrow(m.change_pct)} ${Math.abs(m.change_pct).toFixed(2)}% (от Daily Close)</span>`;
+                const m2 = c.markets[1];
+                if (m2 && m2.price !== null) ch += ` <span class="text-gray-500">· ${m2.name} ${m2.price.toFixed(2)}</span>`;
+                change.innerHTML = ch;
+            } else {
+                main.textContent = '—';
+                change.innerHTML = '<span class="text-gray-500">котировка недоступна</span>';
+            }
+            sc.textContent = combined === null ? '—' : fmtSigned(combined, 3);
+            sc.className = 'font-bold ' + (combined === null ? 'text-gray-500' : scoreColor(combined).replace('text-gray-300', 'text-white'));
+            detail.textContent = detailLine(c);
+        }
+
+        async function fetchOverview() {
+            try {
+                const res = await fetch('/api/v1/overview');
+                const d = await res.json();
+                d.categories.forEach(renderCard);
+                renderPipelineChip(d.pipeline || {});
+                clearTimeout(pollTimer);
+                if (d.pipeline && d.pipeline.running) pollTimer = setTimeout(fetchOverview, 5000);
+            } catch (err) {
+                console.error('Ошибка загрузки категорий:', err);
+                const el = document.getElementById('pipeline-chip');
+                el.className = 'px-2.5 py-1 text-[11px] font-semibold rounded border bg-rose-500/10 text-rose-400 border-rose-500/20';
+                el.textContent = 'Ошибка API';
+            }
+        }
+
+        lucide.createIcons();
+        fetchData();
+        fetchOverview();
+        setInterval(fetchData, 30000);
+        setInterval(fetchOverview, 30000);
+    </script>
+</body>
+</html>
+

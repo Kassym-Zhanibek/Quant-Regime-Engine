@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лента новостей — Quant Regime</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#0B0E14] text-white min-h-screen p-4 md:p-8 font-sans">
+    <div class="max-w-5xl mx-auto">
+        <div class="flex justify-between items-center mb-8 bg-[#141A23] p-4 rounded-xl border border-gray-800">
+            <div>
+                <h1 class="text-2xl font-bold text-white">Новостной терминал (Детализация)</h1>
+                <p class="text-xs text-gray-400 mt-1">Отображение прозрачной логики оценки новостей нейросетями</p>
+            </div>
+            <a href="/" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20">
+                ← На дашборд
+            </a>
+        </div>
+
+        <div id="news-feed" class="space-y-4">
+            <div class="text-gray-500 text-center py-10 animate-pulse">Загрузка данных алгоритма...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadNews() {
+            try {
+                const response = await fetch('/api/v1/news');
+                const news = await response.json();
+                const container = document.getElementById('news-feed');
+
+                if (news.length === 0) {
+                    container.innerHTML = '<div class="text-gray-500 text-center py-4">Новостей пока нет</div>';
+                    return;
+                }
+
+                container.innerHTML = news.map(item => {
+                    const fb = (item.finbert_score || 0).toFixed(2);
+                    const qw = (item.qwen_score || 0).toFixed(2);
+                    const raw = (item.raw_score || 0).toFixed(2);
+
+                    let borderColor = 'border-gray-700';
+                    if (raw >= 0.2) borderColor = 'border-emerald-500/50';
+                    if (raw <= -0.2) borderColor = 'border-rose-500/50';
+
+                    return `
+                    <div class="bg-[#141A23] rounded-xl p-5 border ${borderColor} hover:bg-gray-800/40 transition-colors">
+                        <div class="flex justify-between items-start mb-3 gap-4">
+                            <h2 class="font-medium text-gray-100 text-lg">${item.title}</h2>
+                            <span class="text-[10px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                ${item.category}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-5">${item.summary || 'Описание отсутствует'}</p>
+
+                        <!-- Прозрачная математика расчетов -->
+                        <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+                            <div class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wide">Математика расчета (Score):</div>
+                            <div class="flex flex-wrap items-center gap-2 md:gap-4 font-mono text-sm">
+                                <div class="bg-gray-900 px-3 py-1.5 rounded border border-gray-800">
+                                    <span class="text-gray-500 text-xs">FinBERT:</span>
+                                    <span class="text-amber-400 font-bold">${fb}</span> <span class="text-gray-600 text-xs">× 30%</span>
+                                </div>
+                                <span class="text-gray-600">+</span>
+                                <div class="bg-gray-900 px-3 py-1.5 rounded border border-gray-800">
+                                    <span class="text-gray-500 text-xs">Qwen:</span>
+                                    <span class="text-blue-400 font-bold">${qw}</span> <span class="text-gray-600 text-xs">× 70%</span>
+                                </div>
+                                <span class="text-gray-600">=</span>
+                                <div class="bg-gray-800 px-4 py-1.5 rounded border border-gray-600">
+                                    <span class="text-gray-400 text-xs">Итог:</span>
+                                    <span class="text-white font-bold">${raw}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center text-xs mt-4 pt-4 border-t border-gray-800">
+                            <span class="text-gray-500">Источник: <span class="text-gray-300">${item.source}</span></span>
+                            <span class="text-gray-500">${new Date(item.published_at).toLocaleString('ru-RU')}</span>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                document.getElementById('news-feed').innerHTML = '<div class="text-rose-500 text-center py-4">Ошибка загрузки API</div>';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadNews);
+    </script>
+</body>
+</html>

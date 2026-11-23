@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+httpx
+feedparser
+yfinance
+pandas
+numpy
+scikit-learn
+joblib
+torch
+transformers
+telethon
